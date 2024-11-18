@@ -24,23 +24,14 @@ def train_epoch(
     optimizer.zero_grad()
 
     while not data_sampler.is_empty():
-        batched_graph, batched_node, batched_edge = data_sampler.generate_batch()
-        bs = batched_graph.batch_size
-        n_nodes = batched_graph.num_nodes() // bs
+        batch_h, batch_e = data_sampler.generate_batch()
+        bs, n_nodes = batch_h.size()
 
-        graphs = batched_graph.to(device)
-        input_x = graphs.ndata['feat'].to(device)
-        input_e = graphs.edata['feat'].to(device)
-        pos_enc = graphs.ndata['pos_enc'].to(device)
+        input_x = batch_h.to(device)
+        input_e = batch_e.to(device)
 
-        sign_flip = torch.rand(pos_enc.size(1)).to(device)
-        sign_flip[sign_flip>=0.5] = 1.0; sign_flip[sign_flip<0.5] = -1.0
-        pos_enc = pos_enc * sign_flip.unsqueeze(0)
-
-        batch_e = batched_edge.to(device)
-
-        ox, oe, q_mu, q_logvar = model(graphs, input_x, input_e, pos_enc, bs, n_nodes)
-        loss = model.loss(ox, oe, q_mu, q_logvar, input_x, batch_e, bs, n_nodes)
+        ox, oe, q_mu, q_logvar = model(input_x, input_e, bs, n_nodes)
+        loss = model.loss(ox, oe, q_mu, q_logvar, input_x, input_e, bs, n_nodes)
         loss.backward()
 
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip_norm)

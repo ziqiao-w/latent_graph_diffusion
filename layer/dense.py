@@ -105,38 +105,32 @@ class DenseTransformerLayer(nn.Module):
     def __init__(self, d_model, n_heads, dropout=0.0):
         super().__init__()
         self.norm_h1 = SeqNorm(d_model)
-        self.norm_e1 = SeqNorm(d_model)
+        self.norm_e1 = nn.LayerNorm(d_model)
         
         self.attention = Attention(d_model, n_heads, dropout)
         self.ffn_h = FFN_SwiGLU(d_model, 4 * d_model)
         self.ffn_e = FFN_SwiGLU(d_model, 4 * d_model)
 
         self.norm_h2 = SeqNorm(d_model)
-        self.norm_e2 = SeqNorm(d_model)
+        self.norm_e2 = nn.LayerNorm(d_model)
 
         self.drop_h = nn.Dropout(dropout)
         self.drop_e = nn.Dropout(dropout)
 
     def forward(self, h, e): # h [bs, n, d_model], e [bs, n, n, d_model]
-        bs, n, d_model = h.size()
         h = self.norm_h1(h)
-
-        e = e.reshape(bs, n * n, d_model) # [bs, n*n, d_model], contiguous now
         e = self.norm_e1(e)
-        e = e.view(bs, n, n, d_model) # [bs, n, n, d_model]
 
         ha, ea = self.attention(h, e) # [bs, n, d_model], [bs, n, n, d_model]
+        
         h = h + ha
-        e = e + ea
-
         h = h + self.ffn_h(self.norm_h2(h))
         h = self.drop_h(h)
 
-        ef = e.view(bs, n * n, d_model) # [bs, n*n, d_model]
-        ef = self.norm_e2(ef)
-        ef = ef.view(bs, n, n, d_model) # [bs, n, n, d_model]
-        e = e + self.ffn_e(ef)
+        e = e + ea
+        e = e + self.ffn_e(self.norm_e2(e))
         e = self.drop_e(e)
+        
         e = sym_tensor(e)
 
         return h, e

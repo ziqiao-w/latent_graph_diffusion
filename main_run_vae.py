@@ -7,6 +7,7 @@ import time
 import random
 import argparse, json
 from tqdm import tqdm
+import pickle
 
 import torch
 
@@ -14,8 +15,8 @@ import torch.optim as optim
 
 from lib.utils import MoleculeDGL, MoleculeDatasetDGL, Dictionary, Molecule
 
-from data_prep import MoleculeSamplerDGL
-from layer.vae import Transformer_VAE
+from data_prep import MoleculeSamplerDGL, MoleculeSamplerPytorch
+from layer.dense_vae import DenseVAE
 from train.train_vae_epoch import train_epoch
 
 
@@ -63,26 +64,20 @@ def train_pipeline(model_type, model_config, dataset, params, device, out_dir):
 
     train_start = time.time()
         
-    trainset, valset, testset = dataset.train, dataset.val, dataset.test
-        
     # setting seeds
-    set_all_seeds(params['seed'], tf32_flag=True)
+    set_all_seeds(params['seed'], tf32_flag=False)
     
-    print("Trainset length: ", len(trainset))
+    print("Trainset length: ", len(dataset))
 
     model = model_type(**model_config)
     model = model.to(device)
 
     count_model_param(model)
 
-    optimizer = optim.AdamW(
-        model.parameters(), 
-        lr=params['init_lr'], 
-        weight_decay=params['weight_decay']
-    )
+    optimizer = optim.Adam(model.parameters(), lr=params['init_lr'])
 
     batch_size = params['batch_size']
-    num_warmup = 2 * max(20, len(trainset) // batch_size )
+    num_warmup = 2 * max(20, len(dataset) // batch_size )
     print('LR scheduler num_warmup :',num_warmup)
 
     scheduler_warmup = torch.optim.lr_scheduler.LambdaLR(
@@ -102,7 +97,7 @@ def train_pipeline(model_type, model_config, dataset, params, device, out_dir):
     now_warmup = 0
     for epoch in tqdm(range(params['epochs'])):
         start = time.time()
-        sampler = MoleculeSamplerDGL(trainset, batch_size)
+        sampler = MoleculeSamplerPytorch(dataset, batch_size)
 
         epoch_loss, now_warmup = train_epoch(
             model,
@@ -157,7 +152,7 @@ def main():
     # parser.add_argument('--config', help="Please give a config.json file with training/model/data/param details")
     # parser.add_argument('--dataset', help="Please give a value for dataset name")
     # parser.add_argument('--out_dir', help="Please give a value for out_dir")
-    parser.add_argument('--seed', type=int, default=3, help="Please give a value for seed")
+    parser.add_argument('--seed', type=int, default=131, help="Please give a value for seed")
     parser.add_argument('--epochs', type=int, default=1, help="Please give a value for epochs")
     parser.add_argument('--batch_size', type=int, default=32, help="Please give a value for batch_size")
     parser.add_argument('--init_lr', type=float, default=0.0005, help="Please give a value for init_lr")
@@ -176,7 +171,7 @@ def main():
         'n_layers': 4,
         'n_atom_type': 9, 
         'n_bond_type': 4, 
-        'n_max_pos': 8, 
+        'n_max_pos': 9, 
         'dropout': 0.0
     }
 
@@ -184,15 +179,16 @@ def main():
     device = gpu_setup()
     
     dataset_name = 'QM9_1.4k'
-    data_folder_dgl = 'dataset/QM9_1.4k_dgl_PE/'
-    datasets_dgl = MoleculeDatasetDGL(dataset_name, data_folder_dgl)
+    data_folder_pytorch = 'dataset/QM9_1.4k_pytorch/'
+    with open(data_folder_pytorch+"train_pytorch.pkl","rb") as f:
+        trainset = pickle.load(f)
 
     out_dir = 'chkpt/'
 
     train_pipeline(
-        Transformer_VAE,
+        DenseVAE,
         config,
-        datasets_dgl,
+        trainset,
         vars(args),
         device,
         out_dir

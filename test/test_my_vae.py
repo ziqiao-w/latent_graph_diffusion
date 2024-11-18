@@ -11,7 +11,7 @@ def generate_valid_molecules(
         atom_dict,
         bond_dict,
         num_gen_mol=1000, 
-        num_generated_mols_per_batch=20,
+        num_generated_mols_per_batch=100,
     ):
     num_atom_type = len(atom_dict.idx2word)
 
@@ -26,7 +26,7 @@ def generate_valid_molecules(
         with torch.no_grad():  
             num_atom_sampled = sampler_size.choose_molecule_size() # sample the molecule size
             # num_atom_sampled = num_atom # same size
-            batch_x_0, batch_e_0, _, _ =  model(g=None, h=None, e=None, pos_enc=None, bs=num_generated_mols_per_batch, n=num_atom_sampled) # [bs, n, num_atom_type], [bs, n, n, num_bond_type]
+            batch_x_0, batch_e_0, _, _ =  model(h=None, e=None, bs=num_generated_mols_per_batch, n=num_atom_sampled) # [bs, n, num_atom_type], [bs, n, n, num_bond_type]
             # batch_x_0, batch_e_0, _, _  = net(0, 0, False, num_generated_mols_per_batch, num_atom_sampled) # [bs, n, num_atom_type], [bs, n, n, num_bond_type]
             batch_x_0 = torch.max(batch_x_0,dim=2)[1]  # [bs, n] 
             batch_e_0 = torch.max(batch_e_0,dim=3)[1]  # [bs, n, n]

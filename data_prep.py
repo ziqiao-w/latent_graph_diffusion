@@ -8,6 +8,15 @@ import math
 from lib.utils import Dictionary, Molecule, from_pymol_to_smile
 
 
+def group_molecules_per_size(dataset):
+    mydict={}
+    for mol in dataset:
+        if len(mol) not in mydict:
+            mydict[len(mol)]=[]
+        mydict[len(mol)].append(mol)
+    return mydict
+
+
 def group_molecules_per_size_dgl(dataset):
     mydict={}
     for mol in dataset:
@@ -81,6 +90,22 @@ class MoleculeSamplerDGL(MoleculeSampler):
         batched_graph = dgl.batch(graphs)
         batched_label = torch.stack(labels)
         return batched_graph, batched_label, batched_edge
+    
+
+class MoleculeSamplerPytorch(MoleculeSampler):
+    def __init__(self, dgl_dataset, bs, shuffle=True):
+        self.data_group = group_molecules_per_size(dgl_dataset)
+        super().__init__(self.data_group, bs, shuffle)
+
+    def generate_batch(self):
+        sz = self.choose_molecule_size()
+        indices = self.draw_batch_of_molecules(sz)
+        samples = [self.data_group[sz][i] for i in indices]
+
+        batch_h = torch.stack([s.atom_type for s in samples]).long()
+        batch_e = torch.stack([s.bond_type for s in samples]).long()
+
+        return batch_h, batch_e
     
 
 class sample_molecule_size:

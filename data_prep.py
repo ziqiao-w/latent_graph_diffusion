@@ -1,25 +1,24 @@
 # Libraries
-import os
-import time
-from rdkit import Chem
-from rdkit import RDLogger; RDLogger.DisableLog('rdApp.*')
+import dgl
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import pickle
-import numpy as np
-import matplotlib.pyplot as plt
-import math
-import sys; sys.path.insert(0, 'lib/')
-from lib.molecules import Dictionary, Molecule, from_pymol_to_smile
 
-# PyTorch version and GPU
-print(torch.__version__)
-if torch.cuda.is_available():
-  print(torch.cuda.get_device_name(0))
-  device= torch.device("cuda:0") # use GPU
-else:
-  device= torch.device("cpu")
+import numpy as np
+import math
+
+from lib.utils import Dictionary, Molecule, from_pymol_to_smile
+
+
+def group_molecules_per_size_dgl(dataset):
+    mydict={}
+    for mol in dataset:
+        g = mol[0]
+        n = g.number_of_nodes()
+        
+        if n not in mydict:
+            mydict[n]=[]
+        
+        mydict[n].append(mol)
+    return mydict
 
 
 class MoleculeSampler:
@@ -59,10 +58,37 @@ class MoleculeSampler:
         return indices
     
 
+class MoleculeSamplerDGL(MoleculeSampler):
+
+    def __init__(self, dgl_dataset, bs, shuffle=True):
+        self.data_group = group_molecules_per_size_dgl(dgl_dataset)
+        super().__init__(self.data_group, bs, shuffle)
+
+    def generate_batch(self):
+        sz = self.choose_molecule_size()
+        indices = self.draw_batch_of_molecules(sz)
+        samples = [self.data_group[sz][i] for i in indices]
+        graphs, labels = map(list, zip(*samples))
+
+        batch_size = len(graphs)
+        batched_edge = torch.zeros(batch_size, sz, sz, dtype=torch.long)
+        
+        for i, g in enumerate(graphs):
+            u, v = g.all_edges(order='eid')
+            weight_adj = batched_edge[i]
+            weight_adj[u, v] = g.edata['feat']
+
+        batched_graph = dgl.batch(graphs)
+        batched_label = torch.stack(labels)
+        return batched_graph, batched_label, batched_edge
+    
+
 class sample_molecule_size:
+
     def __init__(self, organized_dataset):  
         self.num_mol =  { sz: len(list_of_mol)  for sz , list_of_mol in organized_dataset.items() }
         self.num_batches_remaining = { sz:  self.num_mol[sz]  for sz in self.num_mol } 
+    
     def choose_molecule_size(self):
         num_batches = self.num_batches_remaining
         possible_sizes =  np.array( list( num_batches.keys()) )
@@ -70,8 +96,3 @@ class sample_molecule_size:
         prob =  prob / prob.sum()
         sz   = np.random.choice(  possible_sizes , p=prob )
         return sz
-        
-# sampler_size = sample_molecule_size(train_group)
-
-# sz = sampler_size.choose_molecule_size()
-

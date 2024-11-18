@@ -1,16 +1,9 @@
-import os
-import time
-from rdkit import Chem
-from rdkit import RDLogger; RDLogger.DisableLog('rdApp.*')
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import math
-import sys; sys.path.insert(0, 'lib/')
-from lib.molecules import Dictionary, Molecule, from_pymol_to_smile
+from lib.utils import Dictionary, Molecule, from_pymol_to_smile
 
 # Global constants
 dz = 64 # number of dimensions for the compressed representation
@@ -23,6 +16,7 @@ drop = 0.0 # dropout value
 
 # Define VAE architecture with Transformers
 class head_attention(nn.Module):
+
     def __init__(self, d, d_head):
         super().__init__()
         self.Q = nn.Linear(d, d_head)
@@ -33,6 +27,7 @@ class head_attention(nn.Module):
         self.drop_att = nn.Dropout(drop)
         self.Ni = nn.Linear(d, d_head)
         self.Nj = nn.Linear(d, d_head)
+        
     def forward(self, x, e):
         ###############################################
         # YOUR CODE STARTS

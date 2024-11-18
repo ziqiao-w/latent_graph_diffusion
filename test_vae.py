@@ -9,9 +9,8 @@ import torch.optim as optim
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import math
-import sys; sys.path.insert(0, 'lib/')
-from lib.molecules import Dictionary, Molecule, from_pymol_to_smile
+
+from lib.utils import Dictionary, Molecule, from_pymol_to_smile
 from vae import VAE
 from tqdm import tqdm
 from data_prep import sample_molecule_size
@@ -52,7 +51,7 @@ max_mol_sz = max(list( train_group.keys()))
 
 net = VAE(max_mol_sz=max_mol_sz, num_atom_type=num_atom_type, num_bond_type=num_bond_type, device=device)
 net = net.to(device)
-net.load_state_dict(torch.load('model/vae_model.pth'))
+net.load_state_dict(torch.load('model_weight/vae_model.pth'))
 net.eval()
 
 dz = 64 # number of dimensions for the compressed representation
@@ -115,30 +114,30 @@ num_print_mol = 16
 list_idx = torch.randperm(num_valid_mol)[:num_print_mol] 
 print(list_idx)
 
-from rdkit.Chem import Draw
-list_valid_mol_img = [ Draw.MolToImage(Chem.MolFromSmiles(list_valid_mol[idx]),size=(512, 512)) for idx in list_idx ]
-
-# Plot
-plt.figure(1, dpi=200)
-figure, axis = plt.subplots(4, 4)
-figure.set_size_inches(16,16)
-i,j,cpt=0,0,0; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=1,0,1; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=2,0,2; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=3,0,3; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=0,1+0,4; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=1,1+0,5; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=2,1+0,6; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=3,1+0,7; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=0,2+0,8; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=1,2+0,9; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=2,2+0,10; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=3,2+0,11; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=0,3+0,12; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=1,3+0,13; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=2,3+0,14; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=3,3+0,15; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-plt.savefig('generated_molecules.png')
+# from rdkit.Chem import Draw
+# list_valid_mol_img = [ Draw.MolToImage(Chem.MolFromSmiles(list_valid_mol[idx]),size=(512, 512)) for idx in list_idx ]
+# 
+# # Plot
+# plt.figure(1, dpi=200)
+# figure, axis = plt.subplots(4, 4)
+# figure.set_size_inches(16,16)
+# i,j,cpt=0,0,0; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=1,0,1; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=2,0,2; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=3,0,3; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=0,1+0,4; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=1,1+0,5; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=2,1+0,6; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=3,1+0,7; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=0,2+0,8; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=1,2+0,9; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=2,2+0,10; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=3,2+0,11; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=0,3+0,12; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=1,3+0,13; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=2,3+0,14; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# i,j,cpt=3,3+0,15; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+# plt.savefig('generated_molecules.png')
 
 print('num_generated_mol',len(list_mol))
 num_unique_mol = 0
@@ -163,3 +162,15 @@ for mol in list_mol:
 print('num_unique_mol, num_mol:',num_unique_mol, len(list_mol))
 perc_novel_mol = 100 * num_unique_mol / len(list_mol)
 print('perc of novelty:', str(perc_novel_mol)[:6])
+
+# check the number of unique novel molecules in the generated molecules
+valid_mol_set = set(list_valid_mol)
+print('num_valid_mol: ',len(valid_mol_set))
+
+num_unique_noval_mol = 0
+train_mol_set = set(list_train_mol)
+for mol in valid_mol_set:
+    if mol not in train_mol_set:
+        num_unique_noval_mol += 1
+
+print('num_unique_noval_mol: ',num_unique_noval_mol)

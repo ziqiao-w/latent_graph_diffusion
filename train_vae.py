@@ -1,23 +1,20 @@
 # Libraries
-import os
 import time
-from rdkit import Chem
-from rdkit import RDLogger; RDLogger.DisableLog('rdApp.*')
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import math
-import sys; sys.path.insert(0, 'lib/')
-from lib.molecules import Dictionary, Molecule, from_pymol_to_smile
+
+from lib.utils import Dictionary, Molecule, from_pymol_to_smile
 from vae import VAE
 from data_prep import MoleculeSampler
 import tqdm
 # from EMA import EMA
 
-
+# Enable tf32 for faster FP32 training
+torch.backends.cuda.matmul.allow_tf32 = True
 
 # PyTorch version and GPU
 print(torch.__version__)
@@ -138,9 +135,10 @@ for epoch in tqdm.tqdm(range(nb_epochs)):
     if num_warmup_batch >= num_warmup:
         scheduler_tracker.step(mean_loss) # tracker scheduler defined w.r.t. loss value
         num_warmup_batch += 1
+    
     elapsed = (time.time()-start)/60
-    # if not epoch%5:
-        # print('epoch= %d \t time= %.4f min \t lr= %.7f \t loss= %.4f' % (epoch, elapsed, optimizer.param_groups[0]['lr'],mean_loss) )
+    if not epoch%5:
+        print('epoch= %d \t time= %.4f min \t lr= %.7f \t loss= %.4f' % (epoch, elapsed, optimizer.param_groups[0]['lr'],mean_loss) )
 
     # Check lr value  
     if optimizer.param_groups[0]['lr'] < 10**-5:
@@ -149,5 +147,5 @@ for epoch in tqdm.tqdm(range(nb_epochs)):
 
 # Save the model
 # optimizer.swap_parameters_with_ema(store_params_in_ema=True)
-torch.save(net.state_dict(), 'model/vae_model.pth')
+torch.save(net.state_dict(), 'model_weight/test_vae_model.pth')
 print('Model saved')

@@ -160,6 +160,7 @@ def compute_perc_valid_molecules(net, sampler_size, num_gen_mol=1000, num_genera
             z = linear_multistep_euler(sample_model, z0, 20, beta=1, order=3)[-1]
             # z = odeint(sample_model, z0, t, atol=1e-7, rtol=1e-7, adjoint_params=sample_model.func.parameters())[-1]
             z = z.reshape(num_generated_mols_per_batch, dz)
+            
             batch_x_0, batch_e_0 = vae.decode(z, num_generated_mols_per_batch, num_atom_sampled) # [bs, n, num_atom_type], [bs, n, n, num_bond_type]
             # batch_x_0, batch_e_0, _, _  = net(0, 0, False, num_generated_mols_per_batch, num_atom_sampled) # [bs, n, num_atom_type], [bs, n, n, num_bond_type]
             batch_x_0 = torch.max(batch_x_0,dim=2)[1]  # [bs, n] 

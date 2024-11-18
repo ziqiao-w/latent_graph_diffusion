@@ -86,8 +86,8 @@ class Attention(nn.Module):
         self.mha = MHA(d_model, n_heads)
         self.drop_h = nn.Dropout(dropout)        
         self.drop_e = nn.Dropout(dropout)
-        self.proj_oh = nn.Linear(d_model, d_model)
-        self.proj_oe = nn.Linear(d_model, d_model)
+        self.proj_oh = nn.Linear(d_model, d_model, bias=False)
+        self.proj_oe = nn.Linear(d_model, d_model, bias=False)
 
     def forward(self, h, e): # h [bs, n, d_model], e [bs, n, n, d_model]
         h, e = self.mha(h, e) # [bs, n, d_model], [bs, n, n, d_model]

@@ -85,6 +85,6 @@ if __name__ == '__main__':
         'n_max_pos': 9, 
         'dropout': 0.0
     }
-    weight_path = 'chkpt/DenseVAE_11-18-15-04.pth'
+    weight_path = 'chkpt/DenseVAE_11-18-17-06.pth'
     
     test_gen_vae(model_type, config, weight_path)

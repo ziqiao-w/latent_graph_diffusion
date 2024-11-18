@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from lib.utils import Dictionary, Molecule, from_pymol_to_smile
-from vae import VAE
+from baseline_vae import VAE
 from data_prep import MoleculeSampler
 import tqdm
 # from EMA import EMA

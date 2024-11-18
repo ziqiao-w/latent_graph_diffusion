@@ -31,7 +31,7 @@ class BlockGT(nn.Module):
         self.LNx2 = SeqNorm(d)
         self.LNe2 = nn.LayerNorm(d)
         
-        self.MHA = Attention(d, num_heads, drop)
+        self.MHA = Attention(d, num_heads, drop, bias=True)
         
         # self.MLPx = nn.Sequential(nn.Linear(d, 4*d), nn.ReLU(), nn.Linear(4*d, d))
         # self.MLPe = nn.Sequential(nn.Linear(d, 4*d), nn.ReLU(), nn.Linear(4*d, d))

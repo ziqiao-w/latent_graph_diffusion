@@ -81,13 +81,13 @@ class MHA(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, d_model, n_heads, dropout):
+    def __init__(self, d_model, n_heads, dropout, bias=False):
         super().__init__()
         self.mha = MHA(d_model, n_heads)
         self.drop_h = nn.Dropout(dropout)        
         self.drop_e = nn.Dropout(dropout)
-        self.proj_oh = nn.Linear(d_model, d_model, bias=False)
-        self.proj_oe = nn.Linear(d_model, d_model, bias=False)
+        self.proj_oh = nn.Linear(d_model, d_model, bias=bias)
+        self.proj_oe = nn.Linear(d_model, d_model, bias=bias)
 
     def forward(self, h, e): # h [bs, n, d_model], e [bs, n, n, d_model]
         h, e = self.mha(h, e) # [bs, n, d_model], [bs, n, n, d_model]
@@ -102,12 +102,12 @@ class Attention(nn.Module):
 
 
 class DenseTransformerLayer(nn.Module):
-    def __init__(self, d_model, n_heads, dropout=0.0):
+    def __init__(self, d_model, n_heads, dropout=0.0, bias=False):
         super().__init__()
         self.norm_h1 = SeqNorm(d_model)
         self.norm_e1 = nn.LayerNorm(d_model)
         
-        self.attention = Attention(d_model, n_heads, dropout)
+        self.attention = Attention(d_model, n_heads, dropout, bias)
         self.ffn_h = FFN_SwiGLU(d_model, 4 * d_model)
         self.ffn_e = FFN_SwiGLU(d_model, 4 * d_model)
 

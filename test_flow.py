@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 import math
 import sys; sys.path.insert(0, 'lib/')
 from lib.molecules import Dictionary, Molecule, from_pymol_to_smile
-from vae import VAE
+# from vae import VAE
+from layer.predefined_vae import VAE
 from tqdm import tqdm
 from data_prep import sample_molecule_size
 from DiT import DiT
@@ -29,7 +30,7 @@ else:
   device= torch.device("cpu")
 print(device)
 
-data_folder_pytorch = 'dataset/QM9_1.4k_pytorch/'
+data_folder_pytorch = 'dataset/QM9_pytorch/'
 
 with open(data_folder_pytorch+"atom_dict.pkl","rb") as f:
     atom_dict=pickle.load(f)
@@ -56,7 +57,7 @@ max_mol_sz = max(list( train_group.keys()))
 
 vae = VAE(max_mol_sz=max_mol_sz, num_atom_type=num_atom_type, num_bond_type=num_bond_type, device=device)
 vae = vae.to(device)
-vae.load_state_dict(torch.load('model/vae_model.pth'))
+vae.load_state_dict(torch.load('model_weight/my_vae_model.pth'))
 vae.eval()
 
 flow = DiT(
@@ -73,7 +74,7 @@ flow = DiT(
             out_channels=1, 
         )
 flow = flow.to(device)
-flow.load_state_dict(torch.load('model/flow_model.pth'))
+flow.load_state_dict(torch.load('model_weight/flow_model_10k.pth'))
 flow.eval()
 
 dz = 64 # number of dimensions for the compressed representation
@@ -137,10 +138,34 @@ def linear_multistep_euler(new_net, x_start, steps, beta=1, order=2):
         traj.append(Xn1)
     return torch.stack(traj)
 
-
+def ot_sampler(new_net, x_start, steps, beta):
+        traj = []
+        traj.append(x_start)
+        t0 = 0.001
+        T = 1 - t0
+        t_span = torch.linspace(t0, T, steps + 1).to(device)
+        Qi_2 = Qi_1 = new_net(t_span[0], x_start)
+        for i in range(1, steps+1):
+            t_t = t_span[i]
+            t_s = t_span[i-1]
+            co1 = (1 - t_t) / (1 - t_s)
+            if i == 1:
+                x1 = Qi_2
+                co1 = (1 - t_t) / (1 - t_s)
+                x_start = co1 * x_start + x1 * (1. - co1)
+            else:
+                x1_1 = Qi_1
+                x1_2 = Qi_2
+                Di = x1_1 + (x1_1 - x1_2) / (2. * 1)
+                x_start = co1 * x_start + Di * (1. - co1)
+                Qi_2 = Qi_1
+            if i != steps:
+                Qi_1 = new_net(t_t, x_start)
+            traj.append(x_start)
+        return torch.stack(traj)
     
-def compute_perc_valid_molecules(net, sampler_size, num_gen_mol=1000, num_generated_mols_per_batch=100):
-    num_atom = 9 # QM9
+def compute_perc_valid_molecules(net, sampler_size, num_gen_mol=10000, num_generated_mols_per_batch=100):
+    num_atom = 8 # QM9
     num_batches = num_gen_mol // num_generated_mols_per_batch 
     num_valid_mol = 0
     list_valid_mol = []
@@ -157,10 +182,10 @@ def compute_perc_valid_molecules(net, sampler_size, num_gen_mol=1000, num_genera
             # t = torch.tensor([0.01, 0.99], dtype=torch.float32, device=device)
             z0 = torch.randn(num_generated_mols_per_batch, 1, 8, 8, device=device)
             # print(z0.shape)
-            z = linear_multistep_euler(sample_model, z0, 20, beta=1, order=3)[-1]
+            z = linear_multistep_euler(sample_model, z0, 10, beta=1, order=2)[-1]
+            # z = ot_sampler(sample_model, z0, 20, beta=1)[-1]
             # z = odeint(sample_model, z0, t, atol=1e-7, rtol=1e-7, adjoint_params=sample_model.func.parameters())[-1]
             z = z.reshape(num_generated_mols_per_batch, dz)
-            
             batch_x_0, batch_e_0 = vae.decode(z, num_generated_mols_per_batch, num_atom_sampled) # [bs, n, num_atom_type], [bs, n, n, num_bond_type]
             # batch_x_0, batch_e_0, _, _  = net(0, 0, False, num_generated_mols_per_batch, num_atom_sampled) # [bs, n, num_atom_type], [bs, n, n, num_bond_type]
             batch_x_0 = torch.max(batch_x_0,dim=2)[1]  # [bs, n] 
@@ -200,22 +225,22 @@ list_valid_mol_img = [ Draw.MolToImage(Chem.MolFromSmiles(list_valid_mol[idx]),s
 plt.figure(1, dpi=200)
 figure, axis = plt.subplots(4, 4)
 figure.set_size_inches(16,16)
-i,j,cpt=0,0,0; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=1,0,1; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=2,0,2; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=3,0,3; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=0,1+0,4; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=1,1+0,5; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=2,1+0,6; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=3,1+0,7; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=0,2+0,8; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=1,2+0,9; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=2,2+0,10; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=3,2+0,11; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=0,3+0,12; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=1,3+0,13; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=2,3+0,14; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
-i,j,cpt=3,3+0,15; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ VAE"); axis[i,j].axis('off')
+i,j,cpt=0,0,0; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=1,0,1; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=2,0,2; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=3,0,3; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=0,1+0,4; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=1,1+0,5; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=2,1+0,6; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=3,1+0,7; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=0,2+0,8; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=1,2+0,9; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=2,2+0,10; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=3,2+0,11; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=0,3+0,12; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=1,3+0,13; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=2,3+0,14; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
+i,j,cpt=3,3+0,15; axis[i,j].imshow(list_valid_mol_img[cpt]); axis[i,j].set_title("Generated w/ Flow"); axis[i,j].axis('off')
 plt.savefig('generated_molecules.png')
 
 print('num_generated_mol',len(list_mol))
@@ -241,3 +266,14 @@ for mol in list_mol:
 print('num_unique_mol, num_mol:',num_unique_mol, len(list_mol))
 perc_novel_mol = 100 * num_unique_mol / len(list_mol)
 print('perc of novelty:', str(perc_novel_mol)[:6])
+
+# check the number of unique novel molecules in the generated molecules
+valid_mol_set = set(list_valid_mol)
+num_unique_noval_mol = 0
+train_mol_set = set(list_train_mol)
+for mol in valid_mol_set:
+    if mol not in train_mol_set:
+        num_unique_noval_mol += 1
+
+print('num_unique_noval_mol: ',num_unique_noval_mol)
+print(f'final score: {100 * num_unique_noval_mol / len(list_mol): .2f}')

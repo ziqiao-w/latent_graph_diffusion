@@ -26,11 +26,11 @@ else:
 print(device)
 
 # batchsize
-bs = 50
+bs = 256
 
 start = time.time()
 
-data_folder_pytorch = 'dataset/QM9_1.4k_pytorch/'
+data_folder_pytorch = 'dataset/QM9_pytorch/'
 
 with open(data_folder_pytorch+"atom_dict.pkl","rb") as f:
     atom_dict=pickle.load(f)
@@ -57,7 +57,13 @@ def group_molecules_per_size(dataset):
 test_group  = group_molecules_per_size(test)
 val_group   = group_molecules_per_size(val)
 train_group = group_molecules_per_size(train)
-
+def print_distribution(data):
+    for nb_atom in range(9+1):
+        try: 
+            print('number of molecule of size {}: \t {}'.format(nb_atom, len(data[nb_atom])))
+        except:
+            pass
+print('Train'); print_distribution(train_group)
 # largest size of molecule in the trainset
 max_mol_sz = max(list( train_group.keys()))
 

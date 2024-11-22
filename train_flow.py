@@ -12,11 +12,13 @@ import matplotlib.pyplot as plt
 import math
 import sys; sys.path.insert(0, 'lib/')
 from lib.molecules import Dictionary, Molecule, from_pymol_to_smile
-from vae import VAE
+# from vae import VAE
 from data_prep import MoleculeSampler
 import tqdm
 from DiT import DiT
 from EMA import EMA
+# from layer.dense_vae import DenseVAE
+from layer.predefined_vae import VAE
 # PyTorch version and GPU
 print(torch.__version__)
 if torch.cuda.is_available():
@@ -27,12 +29,12 @@ else:
 print(device)
 
 # batchsize
-bs = 50
+bs = 256
 # latent dim
 dz = 64
 start = time.time()
 
-data_folder_pytorch = 'dataset/QM9_1.4k_pytorch/'
+data_folder_pytorch = 'dataset/QM9_pytorch/'
 
 with open(data_folder_pytorch+"atom_dict.pkl","rb") as f:
     atom_dict=pickle.load(f)
@@ -65,7 +67,7 @@ max_mol_sz = max(list( train_group.keys()))
 
 vae = VAE(max_mol_sz=max_mol_sz, num_atom_type=num_atom_type, num_bond_type=num_bond_type, device=device)
 vae = vae.to(device)
-vae.load_state_dict(torch.load('model/vae_model.pth'))
+vae.load_state_dict(torch.load('model_weight/my_vae_model.pth'))
 vae.eval()
 
 def display_num_param(net, model_name):
@@ -99,14 +101,14 @@ num_warmup = 2 * max( num_mol_size, len(train) // bs ) # 4 epochs * max( num_mol
 print('num_warmup :',num_warmup)
 
 
-init_lr = 0.0003
+init_lr = 0.0002
 optimizer = torch.optim.AdamW(net.parameters(), lr=init_lr)
 
 #EMA
 # optimizer = EMA(optimizer, ema_decay=0.9999)
 # scheduler_warmup = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda t: min((t+1)/num_warmup, 1.0) ) # warmup scheduler
 # scheduler_tracker = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.95, patience=1, verbose=True) # tracker scheduler
-nb_epochs = 2000
+nb_epochs = 1000
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, nb_epochs, eta_min=1e-5)
 num_warmup_batch = 0
 
@@ -166,5 +168,5 @@ for epoch in tqdm.tqdm(range(nb_epochs)):
 
 # Save the model
 # optimizer.swap_parameters_with_ema(store_params_in_ema=True)
-torch.save(net.state_dict(), 'model/flow_model.pth')
+torch.save(net.state_dict(), 'model_weight/flow_model_10k.pth')
 print("Model saved")
